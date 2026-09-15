@@ -10,6 +10,11 @@ set +e
 # This is critical: paste-token, doctor, and gateway all resolve auth paths from $HOME
 export HOME=/data
 
+# Keep gateway restarts in-process instead of handing off to an external
+# supervisor. In a container the supervisor handoff makes PID 1 exit, which
+# makes Coolify think the container stopped and restart it -> crash loop.
+export OPENCLAW_NO_RESPAWN="${OPENCLAW_NO_RESPAWN:-1}"
+
 # Create config directory if it doesn't exist
 mkdir -p /data/.openclaw
 
@@ -50,7 +55,22 @@ elif [ -n "$OPENAI_API_KEY" ]; then
 elif [ -n "$OPENROUTER_API_KEY" ]; then
     DEFAULT_MODEL="openrouter/anthropic/claude-sonnet-4"
 fi
+
+# Allow an explicit override of the primary model regardless of which API key
+# is present. Useful for custom OpenAI-compatible endpoints (OPENAI_BASE_URL),
+# e.g. OPENCLAW_PRIMARY_MODEL=openai/gpt-4o-mini
+if [ -n "$OPENCLAW_PRIMARY_MODEL" ]; then
+    DEFAULT_MODEL="$OPENCLAW_PRIMARY_MODEL"
+fi
 echo "Default model: $DEFAULT_MODEL"
+
+# Public URL for node onboarding / device pairing.
+# Coolify auto-populates SERVICE_URL_<SERVICENAME> (magic env) once a domain is
+# assigned to the service. Prefer an explicit OPENCLAW_PUBLIC_URL if provided.
+PUBLIC_URL="${OPENCLAW_PUBLIC_URL:-${SERVICE_URL_OPENCLAWGATEWAY:-}}"
+if [ -n "$PUBLIC_URL" ]; then
+    echo "Public URL: $PUBLIC_URL"
+fi
 
 # Always regenerate config from environment variables to ensure
 # current settings are applied (env vars are the source of truth)
@@ -95,6 +115,22 @@ if [ "$SHOULD_REGENERATE" = true ]; then
 
     CHANNELS_JSON="$CHANNELS_JSON}"
 
+    # Optionally wire the public URL into device-pair so pairing links/QRs
+    # point at the real Coolify domain instead of localhost.
+    PLUGINS_JSON=""
+    if [ -n "$PUBLIC_URL" ]; then
+        PLUGINS_JSON=",
+  \"plugins\": {
+    \"entries\": {
+      \"device-pair\": {
+        \"config\": {
+          \"publicUrl\": \"${PUBLIC_URL}\"
+        }
+      }
+    }
+  }"
+    fi
+
     # Create the complete config using current OpenClaw schema
     # - agents.defaults.model.primary replaces agent.model
     # - browser.cdpUrl replaces browser.controlUrl
@@ -109,7 +145,7 @@ if [ "$SHOULD_REGENERATE" = true ]; then
     }
   },
   "gateway": {
-    "mode": "remote",
+    "mode": "local",
     "bind": "${OPENCLAW_GATEWAY_BIND:-lan}",
     "port": ${OPENCLAW_GATEWAY_PORT:-18789},
     "auth": {
@@ -124,7 +160,7 @@ if [ "$SHOULD_REGENERATE" = true ]; then
   "browser": {
     "enabled": ${OPENCLAW_BROWSER_ENABLED:-true},
     "cdpUrl": "${OPENCLAW_BROWSER_URL:-http://openclaw-browser:9222}"
-  }
+  }${PLUGINS_JSON}
 }
 EOF
     echo "Config written to /data/.openclaw/openclaw.json"
@@ -168,6 +204,12 @@ if [ -n "$OPENAI_API_KEY" ]; then
     echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> "$ROOT_ENV"
     echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> "$AGENT_ENV"
     echo "Configured OpenAI API key"
+    # Custom OpenAI-compatible endpoint (e.g. a self-hosted router / proxy)
+    if [ -n "$OPENAI_BASE_URL" ]; then
+        echo "OPENAI_BASE_URL=$OPENAI_BASE_URL" >> "$ROOT_ENV"
+        echo "OPENAI_BASE_URL=$OPENAI_BASE_URL" >> "$AGENT_ENV"
+        echo "Configured OpenAI base URL: $OPENAI_BASE_URL"
+    fi
     HAS_AUTH=true
 fi
 
@@ -218,6 +260,7 @@ fi
 # Export API keys as environment variables for the process
 export ANTHROPIC_API_KEY
 export OPENAI_API_KEY
+export OPENAI_BASE_URL
 export GEMINI_API_KEY
 export OPENROUTER_API_KEY
 export CLAUDE_CODE_OAUTH_TOKEN

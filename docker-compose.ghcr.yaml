@@ -1,24 +1,25 @@
-# OpenClaw - One-Click Deployment for Coolify
-# https://github.com/openclaw/openclaw
+# OpenClaw - Coolify Deployment using pre-built GHCR images
+# https://github.com/Kry9toN/openclaw-coolify
 #
-# Deploy your own personal AI assistant with WhatsApp, Telegram, Discord,
-# and WebChat integration.
+# This compose pulls ready-made images built by the GitHub Action
+# (.github/workflows/docker-build.yml) instead of building on the server.
+# Much faster and lighter on the Coolify host — no pnpm build at deploy time.
 #
-# Quick Start:
-# 1. Copy .env.example to .env and configure your settings
-# 2. Deploy via Coolify using Docker Compose build pack
-# 3. Access Control UI at your domain and enter gateway token
-# 4. Configure channels (WhatsApp QR, Telegram token, etc.)
+# Quick Start (Coolify):
+# 1. Create New Resource -> Public Repository -> this repo
+# 2. Build Pack: Docker Compose
+#    - Docker Compose Location: docker-compose.ghcr.yaml
+# 3. Set environment variables (see below) and Deploy
+#
+# NOTE: the ghcr.io images must be public, OR add a GHCR registry
+# credential in Coolify (Settings -> Registries) so it can pull them.
 
 services:
   # =============================================================================
   # OPENCLAW GATEWAY - Main AI Assistant Service
   # =============================================================================
   openclaw-gateway:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: openclaw-gateway:${OPENCLAW_VERSION:-latest}
+    image: ghcr.io/kry9ton/openclaw-gateway:${OPENCLAW_VERSION:-latest}
     container_name: openclaw-gateway
     restart: unless-stopped
 
@@ -31,6 +32,8 @@ services:
       - OPENCLAW_NO_RESPAWN=1
 
       # === Auto Public URL (Coolify magic env) ===
+      # Coolify assigns a domain to this service:port and injects it back as
+      # SERVICE_URL_OPENCLAWGATEWAY, which the entrypoint uses for device pairing.
       - SERVICE_FQDN_OPENCLAWGATEWAY_18789
 
       # === Gateway Configuration ===
@@ -40,6 +43,7 @@ services:
       # Leave unset to let Coolify generate one; or set OPENCLAW_GATEWAY_TOKEN
       # yourself to override.
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-$SERVICE_PASSWORD_64_OPENCLAWGATEWAY}
+      # Optional: override the public URL used for pairing links/QRs
       - OPENCLAW_PUBLIC_URL=${OPENCLAW_PUBLIC_URL:-}
 
       # === Data Paths ===
@@ -47,28 +51,22 @@ services:
       - OPENCLAW_STATE_DIR=/data/.openclaw
       - XDG_CONFIG_HOME=/data/.openclaw
 
-      # === Model Authentication ===
-      # Set at least one of these for the AI to work
+      # === Model Selection ===
       # Override the auto-detected primary model, e.g. openai/gpt-4o-mini
       - OPENCLAW_PRIMARY_MODEL=${OPENCLAW_PRIMARY_MODEL:-}
-      # API Keys (direct):
+
+      # === Model Authentication (set at least one) ===
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       # Custom OpenAI-compatible endpoint (self-hosted router/proxy)
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      # Claude OAuth (alternative to API key - paste from 'claude setup-token'):
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
-      # OpenRouter (access many models with one key):
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
 
-      # === Channel: Telegram ===
+      # === Channels ===
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-
-      # === Channel: Discord ===
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
-
-      # === Channel: Slack ===
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
       - SLACK_APP_TOKEN=${SLACK_APP_TOKEN:-}
 
@@ -79,26 +77,18 @@ services:
       # === Redis Cache ===
       - REDIS_URL=${REDIS_URL:-redis://openclaw-redis:6379}
 
-      # === Gmail Integration (optional) ===
-      - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD:-}
-
-      # === Web Search (optional) ===
-      - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY:-}
-
       # === Optional Integrations ===
+      - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD:-}
+      - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY:-}
       - GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY:-}
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
 
     volumes:
-      # Persistent storage for config, credentials, and sessions
       - openclaw-config:/data/.openclaw
-      # Agent workspace for code and artifacts
       - openclaw-workspace:/data/openclaw
 
     ports:
-      # Gateway WebSocket + Control UI
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
-      # Canvas host (optional, for mobile nodes)
       - "${OPENCLAW_CANVAS_PORT:-18793}:18793"
 
     depends_on:
@@ -141,25 +131,25 @@ services:
       - openclaw-network
 
   # =============================================================================
-  # BROWSER - Chromium for Browser Automation Tool
+  # BROWSER - Chromium for Browser Automation Tool (pre-built GHCR image)
   # =============================================================================
   openclaw-browser:
-    image: chromedp/headless-shell:latest
+    image: ghcr.io/kry9ton/openclaw-browser:${OPENCLAW_VERSION:-latest}
     container_name: openclaw-browser
     restart: unless-stopped
 
-    # Shared memory for Chrome
     shm_size: 2gb
 
-    # Chrome runs with --remote-debugging-port=9222 by default
-    # No healthcheck needed - chromedp/headless-shell is minimal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9222/json/version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
     networks:
       - openclaw-network
 
-# =============================================================================
-# VOLUMES - Persistent Storage
-# =============================================================================
 volumes:
   openclaw-config:
     name: openclaw-config
@@ -168,9 +158,6 @@ volumes:
   openclaw-redis-data:
     name: openclaw-redis-data
 
-# =============================================================================
-# NETWORKS
-# =============================================================================
 networks:
   openclaw-network:
     driver: bridge
