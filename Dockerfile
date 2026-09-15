@@ -89,7 +89,7 @@ RUN corepack enable
 # Clone and build OpenClaw from source
 RUN git clone --depth 1 https://github.com/openclaw/openclaw.git . && \
     pnpm install && \
-    pnpm build && \
+    OPENCLAW_TSDOWN_MAX_OLD_SPACE_MB=4096 pnpm build && \
     pnpm ui:install && \
     pnpm ui:build
 
