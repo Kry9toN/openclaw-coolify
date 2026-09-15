@@ -4,7 +4,7 @@
 # This Dockerfile builds a production-ready OpenClaw gateway with all
 # required binaries baked in for persistent operation.
 
-FROM node:22-bookworm
+FROM node:20-bookworm
 
 # Build arguments
 ARG OPENCLAW_VERSION=latest
