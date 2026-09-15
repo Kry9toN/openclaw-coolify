@@ -83,6 +83,7 @@ RUN mkdir -p /home/openclaw && chown -R openclaw:openclaw /home/openclaw
 WORKDIR /app
 
 # Enable corepack for pnpm
+RUN npm install -g corepack
 RUN corepack enable
 
 # Clone and build OpenClaw from source
