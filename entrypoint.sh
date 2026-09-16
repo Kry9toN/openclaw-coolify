@@ -62,6 +62,58 @@ fi
 if [ -n "$OPENCLAW_PRIMARY_MODEL" ]; then
     DEFAULT_MODEL="$OPENCLAW_PRIMARY_MODEL"
 fi
+
+# ---------------------------------------------------------------------------
+# Custom OpenAI-compatible provider (Omniroute / LiteLLM / vLLM / etc.)
+#
+# Setting OPENAI_BASE_URL alone is NOT enough: OpenClaw routes requests by
+# provider config, so without a provider entry it still hits api.openai.com.
+# When OPENAI_BASE_URL is set we register a dedicated provider in
+# models.providers and point the primary model at it (provider/model).
+#
+# Tunables (all optional):
+#   OPENAI_BASE_URL              upstream base URL, e.g. https://host/v1
+#   OPENAI_API_KEY               credential for the endpoint
+#   OPENCLAW_CUSTOM_PROVIDER     provider key name (default: custom)
+#   OPENCLAW_CUSTOM_MODEL        model id at the endpoint (default: derived
+#                                from OPENCLAW_PRIMARY_MODEL, else gpt-4o)
+#   OPENCLAW_CUSTOM_CONTEXT_WINDOW / OPENCLAW_CUSTOM_MAX_TOKENS  size hints
+# ---------------------------------------------------------------------------
+MODELS_JSON=""
+if [ -n "$OPENAI_BASE_URL" ]; then
+    CUSTOM_PROVIDER_NAME="${OPENCLAW_CUSTOM_PROVIDER:-custom}"
+    # Model id at the endpoint: explicit override, else the primary model with
+    # any leading "provider/" stripped, else gpt-4o.
+    CUSTOM_MODEL="${OPENCLAW_CUSTOM_MODEL:-${OPENCLAW_PRIMARY_MODEL:-gpt-4o}}"
+    CUSTOM_MODEL="${CUSTOM_MODEL#openai/}"
+    CUSTOM_MODEL="${CUSTOM_MODEL#${CUSTOM_PROVIDER_NAME}/}"
+    CTX="${OPENCLAW_CUSTOM_CONTEXT_WINDOW:-128000}"
+    MAXTOK="${OPENCLAW_CUSTOM_MAX_TOKENS:-16000}"
+    DEFAULT_MODEL="${CUSTOM_PROVIDER_NAME}/${CUSTOM_MODEL}"
+    MODELS_JSON="\"models\": {
+    \"mode\": \"merge\",
+    \"providers\": {
+      \"${CUSTOM_PROVIDER_NAME}\": {
+        \"baseUrl\": \"${OPENAI_BASE_URL}\",
+        \"apiKey\": \"${OPENAI_API_KEY}\",
+        \"api\": \"openai-completions\",
+        \"models\": [
+          {
+            \"id\": \"${CUSTOM_MODEL}\",
+            \"name\": \"${CUSTOM_MODEL}\",
+            \"reasoning\": false,
+            \"input\": [\"text\"],
+            \"cost\": { \"input\": 0, \"output\": 0, \"cacheRead\": 0, \"cacheWrite\": 0 },
+            \"contextWindow\": ${CTX},
+            \"contextTokens\": ${CTX},
+            \"maxTokens\": ${MAXTOK}
+          }
+        ]
+      }
+    }
+  },"
+    echo "Custom provider '${CUSTOM_PROVIDER_NAME}' -> ${OPENAI_BASE_URL} (model: ${CUSTOM_MODEL})"
+fi
 echo "Default model: $DEFAULT_MODEL"
 
 # Public URL for node onboarding / device pairing.
@@ -189,6 +241,7 @@ if [ "$SHOULD_REGENERATE" = true ]; then
     # - browser.cdpUrl replaces browser.controlUrl
     cat > /data/.openclaw/openclaw.json << EOF
 {
+  ${MODELS_JSON}
   "agents": {
     "defaults": {
       "model": {

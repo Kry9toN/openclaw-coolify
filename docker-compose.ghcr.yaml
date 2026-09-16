@@ -58,6 +58,14 @@ services:
       # Override the auto-detected primary model, e.g. openai/gpt-4o-mini
       - OPENCLAW_PRIMARY_MODEL=${OPENCLAW_PRIMARY_MODEL:-}
 
+      # === Custom OpenAI-compatible provider (Omniroute / LiteLLM / vLLM) ===
+      # When OPENAI_BASE_URL is set, a dedicated provider is registered so
+      # requests go to your endpoint instead of api.openai.com.
+      - OPENCLAW_CUSTOM_PROVIDER=${OPENCLAW_CUSTOM_PROVIDER:-}
+      - OPENCLAW_CUSTOM_MODEL=${OPENCLAW_CUSTOM_MODEL:-}
+      - OPENCLAW_CUSTOM_CONTEXT_WINDOW=${OPENCLAW_CUSTOM_CONTEXT_WINDOW:-}
+      - OPENCLAW_CUSTOM_MAX_TOKENS=${OPENCLAW_CUSTOM_MAX_TOKENS:-}
+
       # === Model Authentication (set at least one) ===
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}

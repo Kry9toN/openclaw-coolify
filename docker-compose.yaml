@@ -53,6 +53,11 @@ services:
       # Set at least one of these for the AI to work
       # Override the auto-detected primary model, e.g. openai/gpt-4o-mini
       - OPENCLAW_PRIMARY_MODEL=${OPENCLAW_PRIMARY_MODEL:-}
+      # Custom OpenAI-compatible provider (Omniroute / LiteLLM / vLLM)
+      - OPENCLAW_CUSTOM_PROVIDER=${OPENCLAW_CUSTOM_PROVIDER:-}
+      - OPENCLAW_CUSTOM_MODEL=${OPENCLAW_CUSTOM_MODEL:-}
+      - OPENCLAW_CUSTOM_CONTEXT_WINDOW=${OPENCLAW_CUSTOM_CONTEXT_WINDOW:-}
+      - OPENCLAW_CUSTOM_MAX_TOKENS=${OPENCLAW_CUSTOM_MAX_TOKENS:-}
       # API Keys (direct):
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}

@@ -96,6 +96,12 @@ RUN git clone --depth 1 https://github.com/openclaw/openclaw.git . && \
 # Install additional CLI tools for OpenClaw skills
 RUN npm install -g @steipete/bird || echo "Warning: bird CLI installation failed (optional dependency)"
 
+# Provide a global `openclaw` command wrapper so CLI instructions shown in the
+# Control UI (e.g. `openclaw devices approve <id>`, `openclaw dashboard`) work
+# without having to type `node dist/index.js ...`.
+RUN printf '#!/bin/sh\nexec node /app/dist/index.js "$@"\n' > /usr/local/bin/openclaw \
+    && chmod +x /usr/local/bin/openclaw
+
 # Copy entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
 
