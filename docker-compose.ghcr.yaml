@@ -131,21 +131,25 @@ services:
       - openclaw-network
 
   # =============================================================================
-  # BROWSER - Chromium for Browser Automation Tool (pre-built GHCR image)
+  # BROWSER - Headless Chrome (CDP) for Browser Automation Tool
+  # Uses chromedp/headless-shell: a minimal, container-hardened Chrome that
+  # only exposes CDP on 9222. Avoids the fragile Xvfb/VNC full-Chromium setup
+  # that crash-loops with SIGTRAP.
   # =============================================================================
   openclaw-browser:
-    image: ghcr.io/kry9ton/openclaw-browser:${OPENCLAW_VERSION:-latest}
+    image: chromedp/headless-shell:latest
     container_name: openclaw-browser
     restart: unless-stopped
 
+    # Shared memory for Chrome (prevents renderer crashes)
     shm_size: 2gb
 
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9222/json/version || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+    command:
+      - --remote-debugging-address=0.0.0.0
+      - --remote-debugging-port=9222
+      - --no-sandbox
+      - --disable-gpu
+      - --disable-dev-shm-usage
 
     networks:
       - openclaw-network

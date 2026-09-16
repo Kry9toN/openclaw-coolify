@@ -153,6 +153,7 @@ if [ "$SHOULD_REGENERATE" = true ]; then
     },
     "trustedProxies": ${PROXIES_JSON},
     "controlUi": {
+      "enabled": true,
       "allowInsecureAuth": true
     }
   },

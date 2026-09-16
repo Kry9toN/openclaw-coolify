@@ -29,9 +29,6 @@ jobs:
           - name: gateway
             dockerfile: Dockerfile
             image: openclaw-gateway
-          - name: browser
-            dockerfile: Dockerfile.browser
-            image: openclaw-browser
 
     steps:
       - name: Checkout
