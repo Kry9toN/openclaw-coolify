@@ -132,6 +132,42 @@ if [ "$SHOULD_REGENERATE" = true ]; then
         echo "Gateway auth: none (no token available)"
     fi
 
+    # Control UI allowed origins. The gateway rejects browser connections whose
+    # page origin isn't whitelisted. Derive it from the public URL (both http
+    # and https, since the proxy may serve either) and allow extra origins via
+    # OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS (comma-separated).
+    ORIGINS_LIST=""
+    add_origin() {
+        [ -z "$1" ] && return
+        if [ -z "$ORIGINS_LIST" ]; then
+            ORIGINS_LIST="\"$1\""
+        else
+            ORIGINS_LIST="$ORIGINS_LIST, \"$1\""
+        fi
+    }
+    if [ -n "$PUBLIC_URL" ]; then
+        PU="${PUBLIC_URL%/}"
+        add_origin "$PU"
+        # Also whitelist the opposite scheme for the same host.
+        case "$PU" in
+            http://*)  add_origin "https://${PU#http://}" ;;
+            https://*) add_origin "http://${PU#https://}" ;;
+        esac
+    fi
+    if [ -n "$OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS" ]; then
+        OLD_IFS="$IFS"; IFS=','
+        for o in $OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS; do
+            add_origin "$(echo "$o" | tr -d '[:space:]')"
+        done
+        IFS="$OLD_IFS"
+    fi
+    ALLOWED_ORIGINS_JSON=""
+    if [ -n "$ORIGINS_LIST" ]; then
+        ALLOWED_ORIGINS_JSON=",
+      \"allowedOrigins\": [${ORIGINS_LIST}]"
+        echo "Control UI allowed origins: [${ORIGINS_LIST}]"
+    fi
+
     # Optionally wire the public URL into device-pair so pairing links/QRs
     # point at the real Coolify domain instead of localhost.
     PLUGINS_JSON=""
@@ -169,7 +205,7 @@ if [ "$SHOULD_REGENERATE" = true ]; then
     "trustedProxies": ${PROXIES_JSON},
     "controlUi": {
       "enabled": true,
-      "allowInsecureAuth": true
+      "allowInsecureAuth": true${ALLOWED_ORIGINS_JSON}
     }
   },
   "channels": ${CHANNELS_JSON},

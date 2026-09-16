@@ -41,6 +41,8 @@ services:
       # yourself to override.
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-$SERVICE_PASSWORD_64_OPENCLAWGATEWAY}
       - OPENCLAW_PUBLIC_URL=${OPENCLAW_PUBLIC_URL:-}
+      # Optional: extra Control UI browser origins (comma-separated)
+      - OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS=${OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS:-}
 
       # === Data Paths ===
       - OPENCLAW_CONFIG_PATH=/data/.openclaw/openclaw.json
