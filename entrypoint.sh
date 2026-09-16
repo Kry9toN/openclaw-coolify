@@ -115,6 +115,23 @@ if [ "$SHOULD_REGENERATE" = true ]; then
 
     CHANNELS_JSON="$CHANNELS_JSON}"
 
+    # Gateway auth block. Newer OpenClaw REFUSES to bind to lan/0.0.0.0 with
+    # auth.mode=none (unauthenticated network exposure). We always have a token
+    # (from env or Coolify's SERVICE_PASSWORD_* magic env), so enable token
+    # auth; only fall back to "none" if somehow no token is present.
+    if [ -n "$GATEWAY_TOKEN" ]; then
+        AUTH_JSON="{
+      \"mode\": \"token\",
+      \"token\": \"${GATEWAY_TOKEN}\"
+    }"
+        echo "Gateway auth: token mode enabled"
+    else
+        AUTH_JSON="{
+      \"mode\": \"none\"
+    }"
+        echo "Gateway auth: none (no token available)"
+    fi
+
     # Optionally wire the public URL into device-pair so pairing links/QRs
     # point at the real Coolify domain instead of localhost.
     PLUGINS_JSON=""
@@ -148,9 +165,7 @@ if [ "$SHOULD_REGENERATE" = true ]; then
     "mode": "local",
     "bind": "${OPENCLAW_GATEWAY_BIND:-lan}",
     "port": ${OPENCLAW_GATEWAY_PORT:-18789},
-    "auth": {
-      "mode": "none"
-    },
+    "auth": ${AUTH_JSON},
     "trustedProxies": ${PROXIES_JSON},
     "controlUi": {
       "enabled": true,
@@ -285,5 +300,12 @@ fi
 echo "Verifying model authentication status..."
 node dist/index.js models status 2>&1 || echo "Note: models status check completed (non-fatal)"
 
-# Start the gateway with environment-variable-driven configuration
-exec node dist/index.js gateway --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port "${OPENCLAW_GATEWAY_PORT:-18789}"
+# Start the gateway with environment-variable-driven configuration.
+# Pass --token explicitly when present so the gateway starts with auth
+# (required: it refuses to bind to lan/0.0.0.0 unauthenticated).
+GATEWAY_ARGS="gateway --bind ${OPENCLAW_GATEWAY_BIND:-lan} --port ${OPENCLAW_GATEWAY_PORT:-18789}"
+if [ -n "$GATEWAY_TOKEN" ]; then
+    exec node dist/index.js $GATEWAY_ARGS --token "$GATEWAY_TOKEN"
+else
+    exec node dist/index.js $GATEWAY_ARGS
+fi
